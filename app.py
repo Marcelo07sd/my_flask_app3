@@ -1,13 +1,13 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, send_from_directory
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
 import numpy as np
 import os
 
 app = Flask(__name__)
-model = load_model('model/modelo_completo_100_.h5')
+model = load_model('modelo_completo_100_.h5')
 
-UPLOAD_FOLDER = 'static/uploads'
+UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Mapeo de etiquetas
@@ -24,7 +24,8 @@ def prepare_image(img_path):
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    # Devuelve el archivo index.html desde el directorio principal
+    return send_from_directory('.', 'index.html')
 
 
 @app.route('/predict', methods=['POST'])
@@ -50,3 +51,4 @@ if __name__ == '__main__':
     if not os.path.exists(UPLOAD_FOLDER):
         os.makedirs(UPLOAD_FOLDER)
     app.run(debug=True)
+
