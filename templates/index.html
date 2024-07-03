@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clasificador de Imágenes</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Clasificador de Imágenes</h1>
+        <form id="upload-form" action="/predict" method="post" enctype="multipart/form-data">
+            <input type="file" id="file-input" name="file" accept="image/*">
+            <button type="submit">Clasificar Imagen</button>
+        </form>
+        <div id="results"></div>
+    </div>
+    <script>
+        document.getElementById('upload-form').addEventListener('submit', function(event) {
+            event.preventDefault(); // Evita que el formulario se envíe de forma predeterminada
+
+            const formData = new FormData();
+            const fileInput = document.getElementById('file-input').files[0];
+            formData.append('file', fileInput);
+
+            fetch('/predict', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                displayResults(data);
+            })
+            .catch(error => console.error('Error:', error));
+        });
+
+        function displayResults(result) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `<p>Resultado: ${result.prediction}</p>`;
+        }
+    </script>
+</body>
+</html>
