@@ -11,8 +11,7 @@ UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Mapeo de etiquetas
-labels = ['cardboard', 'glass', 'metal', 'organic', 'paper', 'plastic', 'trash']
-
+labels = ['cartón', 'vidrio', 'metal', 'orgánico', 'papel', 'plástico', 'basura']
 
 def prepare_image(img_path):
     img = image.load_img(img_path, target_size=(150, 150))
@@ -21,34 +20,33 @@ def prepare_image(img_path):
     img_array /= 255.0
     return img_array
 
-
 @app.route('/')
 def index():
-    # Devuelve el archivo index.html desde el directorio principal
-    return send_from_directory('.', 'index.html')
-
+    return send_from_directory('.', 'index7.html')
 
 @app.route('/predict', methods=['POST'])
 def predict():
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'})
 
-    file = request.files['file']
+    files = request.files.getlist('file')
+    predictions = []
 
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'})
+    for file in files:
+        if file.filename == '':
+            return jsonify({'error': 'No selected file'})
 
-    if file:
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-        file.save(filepath)
-        img_array = prepare_image(filepath)
-        predictions = model.predict(img_array)
-        predicted_label = labels[np.argmax(predictions[0])]
-        return jsonify({'prediction': predicted_label})
+        if file:
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+            file.save(filepath)
+            img_array = prepare_image(filepath)
+            prediction = model.predict(img_array)
+            predicted_label = labels[np.argmax(prediction[0])]
+            predictions.append({'filename': file.filename, 'prediction': predicted_label})
 
+    return jsonify({'predictions': predictions})
 
 if __name__ == '__main__':
     if not os.path.exists(UPLOAD_FOLDER):
         os.makedirs(UPLOAD_FOLDER)
     app.run(debug=True)
-
