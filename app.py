@@ -1,52 +1,70 @@
-from flask import Flask, request, jsonify, send_from_directory
-from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing import image
-import numpy as np
 import os
+from flask import Flask, render_template, request, redirect, url_for
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime, timezone, timedelta
 
 app = Flask(__name__)
-model = load_model('model/modelo_completo_100_.h5')
 
-UPLOAD_FOLDER = 'uploads'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+# Obtener la URL de la base de datos desde Render
+url_internal = os.getenv("DATABASE_URL", "postgresql://flask_postgres_j4of_user:kWTVfzGKg8QNGXMhU6GtnY9H8cCflqpc@dpg-cv6tjadumphs738d9nf0-a/flask_postgres_j4of")
 
-# Mapeo de etiquetas
-labels = ['cartón', 'vidrio', 'metal', 'orgánico', 'papel', 'plástico', 'basura']
+# Reemplazar 'postgres://' por 'postgresql://' (Render usa un formato diferente)
+if url_internal.startswith("postgres://"):
+    url_internal = url_internal.replace("postgres://", "postgresql://", 1)
 
-def prepare_image(img_path):
-    img = image.load_img(img_path, target_size=(150, 150))
-    img_array = image.img_to_array(img)
-    img_array = np.expand_dims(img_array, axis=0)
-    img_array /= 255.0
-    return img_array
+app.config['SQLALCHEMY_DATABASE_URI'] = url_internal
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
+
+# Definir el modelo
+class Task(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.String(200))
+    done = db.Column(db.Boolean)
+    fecha_creacion = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc) + timedelta(hours=-5))
+
+# Crear la tabla en la base de datos
+with app.app_context():
+    db.create_all()
 
 @app.route('/')
-def index():
-    return send_from_directory('.', 'index7.html')
+def home():
+    tasks = Task.query.all()
+    dias_semana = {
+        "Monday": "Lunes", "Tuesday": "Martes", "Wednesday": "Miércoles",
+        "Thursday": "Jueves", "Friday": "Viernes", "Saturday": "Sábado", "Sunday": "Domingo"
+    }
+    return render_template('index.html', tasks=tasks, dias_semana=dias_semana)
 
-@app.route('/predict', methods=['POST'])
-def predict():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part'})
+@app.route('/create-task', methods=['POST'])
+def create():
+    task = Task(content=request.form['content'], done=False)
+    db.session.add(task)
+    db.session.commit()
+    return redirect(url_for('home'))
 
-    files = request.files.getlist('file')
-    predictions = []
+@app.route('/edit/<int:id>', methods=['GET', 'POST'])
+def edit(id):
+    task = Task.query.get(id)
+    if request.method == 'POST' and task:
+        task.content = request.form['content-edit']
+        db.session.commit()
+        return redirect(url_for('home'))
+    return render_template('edit.html', task=task)
 
-    for file in files:
-        if file.filename == '':
-            return jsonify({'error': 'No selected file'})
+@app.route('/done/<int:id>')
+def done(id):
+    task = Task.query.get(id)
+    if task:
+        task.done = not task.done
+        db.session.commit()
+    return redirect(url_for('home'))
 
-        if file:
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-            file.save(filepath)
-            img_array = prepare_image(filepath)
-            prediction = model.predict(img_array)
-            predicted_label = labels[np.argmax(prediction[0])]
-            predictions.append({'filename': file.filename, 'prediction': predicted_label})
-
-    return jsonify({'predictions': predictions})
-
-if __name__ == '__main__':
-    if not os.path.exists(UPLOAD_FOLDER):
-        os.makedirs(UPLOAD_FOLDER)
-    app.run(debug=True)
+@app.route('/delete/<int:id>')
+def delete(id):
+    task = Task.query.get(id)
+    if task:
+        db.session.delete(task)
+        db.session.commit()
+    return redirect(url_for('home'))
